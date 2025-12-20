@@ -46,6 +46,13 @@ class Settings(BaseSettings):
     mysql_port: int = Field(default=3306, description="MySQL端口", env="MYSQL_PORT")
     mysql_user: str = Field(default="root", description="MySQL用户名", env="MYSQL_USER")
     mysql_password: str = Field(default="your_password", description="MySQL密码", env="MYSQL_PASSWORD")
+
+    # 图数据库配置
+    neo4j_uri: str = Field(default="neo4j://localhost:7687", description="图数据库URI", env="NEO4J_URI")
+    neo4j_user: str = Field(default="neo4j", description="图数据库用户名", env="NEO4J_USER")
+    neo4j_password: str = Field(default="neo4jneo4j", description="图数据库密码", env="NEO4J_PASSWORD")
+    neo4j_pool_size: int = Field(default=5, description="连接池大小", env="NEO4J_POOL_SIZE")
+    neo4j_max_overflow: int = Field(default=10, description="最大溢出连接数", env="NEO4J_MAX_OVERFLOW")
     
     # 文件存储配置
     storage_type: str = Field(default="minio", description="存储类型: minio, s3, local", env="STORAGE_TYPE")
