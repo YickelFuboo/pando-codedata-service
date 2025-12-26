@@ -43,11 +43,12 @@ class PythonAnalyzer(LanguageAnalyzer):
                     if node not in class_methods:
                         functions.append(await self.analyze_function(node, imports_map))
             
-            # 创建文件节点
+            # 创建文件节点，统一使用正斜杠
             return FileInfo(
                 name=os.path.basename(self.file_path),
-                file_path=os.path.relpath(self.file_path, self.base_path),
+                file_path=os.path.relpath(self.file_path, self.base_path).replace('\\', '/'),
                 language=Lang.PYTHON,
+                summary="",
                 functions=functions,
                 classes=classes,
                 imports=list(imports_map.values())
@@ -115,7 +116,7 @@ class PythonAnalyzer(LanguageAnalyzer):
         
         return imports
 
-    async def analyze_function(self, node, imports_map: dict) -> FunctionInfo:
+    async def analyze_function(self, node, imports_map: dict, class_name: str = None) -> FunctionInfo:
         """分析Python函数"""
         source_code = ast.unparse(node)
         
@@ -141,19 +142,20 @@ class PythonAnalyzer(LanguageAnalyzer):
         full_name = f"{module_path}.{node.name}"
         
         # 生成函数签名（函数名+参数类型+返回类型）
-        #signature = f"{node.name}({','.join(param_types)})->{return_types[0]}"
-        # Python调用点参数类型无法确定，先保持签名仅是函数名
-        signature = node.name
+        # 只包含参数类型，不包含参数名，避免参数名不同但类型相同的函数被认为是不同的签名
+        param_signature = ", ".join(param_types)
+        return_type_str = return_types[0] if return_types else "Any"
+        signature = f"{node.name}({param_signature}) -> {return_type_str}"
         
-        # 分析函数调用，传入导入映射
-        calls = await self._get_function_calls(node, imports_map, module_path)
+        # 分析函数调用，传入导入映射和类名（如果是类方法）
+        calls = await self._get_function_calls(node, imports_map, module_path, class_name)
          
         return FunctionInfo(
             name=node.name,
             full_name=full_name,  # 包含完整路径的函数名
             signature=signature,  # 只包含函数签名信息
             type=FunctionType.FUNCTION.value,
-            file_path=os.path.relpath(self.file_path, self.base_path),
+            file_path=os.path.relpath(self.file_path, self.base_path).replace('\\', '/'),
             source_code=source_code,
             start_line=node.lineno,
             end_line=node.end_lineno,
@@ -165,7 +167,7 @@ class PythonAnalyzer(LanguageAnalyzer):
             calls=calls
         )
         
-    async def _get_function_calls(self, node, imports_map: dict, module_path: str) -> List[CallInfo]:
+    async def _get_function_calls(self, node, imports_map: dict, module_path: str, class_name: str = None) -> List[CallInfo]:
         """分析函数调用
         
         Args:
@@ -199,8 +201,7 @@ class PythonAnalyzer(LanguageAnalyzer):
                         calls.append(CallInfo(
                             name=func_name,
                             full_name=full_name,
-                            #signature=self._build_call_signature(n, func_name)
-                            signature=func_name
+                            signature=self._build_call_signature(n, func_name)
                         ))
                     else:
                         # 同模块的函数调用
@@ -211,8 +212,7 @@ class PythonAnalyzer(LanguageAnalyzer):
                         calls.append(CallInfo(
                             name=name,
                             full_name=full_name,
-                            #signature=self._build_call_signature(n, name)
-                            signature=name
+                            signature=self._build_call_signature(n, name)
                         ))                
                 elif isinstance(n.func, ast.Attribute):
                     if isinstance(n.func.value, ast.Name):
@@ -220,14 +220,12 @@ class PythonAnalyzer(LanguageAnalyzer):
                         value_name = n.func.value.id
                         if value_name == "self":
                             # 类方法调用
-                            class_name = node.parent_class.name if hasattr(node, 'parent_class') else None
                             if class_name:
                                 full_name = f"{module_path}.{class_name}.{func_name}"
                                 calls.append(CallInfo(
                                     name=func_name,
                                     full_name=full_name,
-                                    #signature=self._build_call_signature(n, func_name)
-                                    signature=func_name
+                                    signature=self._build_call_signature(n, func_name)
                                 ))
                         else:
                             # 检查是否是导入的模块
@@ -237,8 +235,7 @@ class PythonAnalyzer(LanguageAnalyzer):
                                 calls.append(CallInfo(
                                     name=func_name,
                                     full_name=full_name,
-                                    #signature=self._build_call_signature(n, func_name)
-                                    signature=func_name
+                                    signature=self._build_call_signature(n, func_name)
                                 ))
                             else:
                                 # 本地类的方法调用
@@ -246,8 +243,7 @@ class PythonAnalyzer(LanguageAnalyzer):
                                 calls.append(CallInfo(
                                     name=func_name,
                                     full_name=full_name,
-                                    #signature=self._build_call_signature(n, func_name)
-                                    signature=func_name
+                                    signature=self._build_call_signature(n, func_name)
                                 ))
                     elif isinstance(n.func.value, ast.Attribute):
                         # 处理多级调用，如 os.path.join
@@ -270,8 +266,7 @@ class PythonAnalyzer(LanguageAnalyzer):
                             calls.append(CallInfo(
                                 name=func_name,
                                 full_name=full_path,
-                                #signature=self._build_call_signature(n, func_name)
-                                signature=func_name
+                                signature=self._build_call_signature(n, func_name)
                             ))
         
         return calls
@@ -371,7 +366,7 @@ class PythonAnalyzer(LanguageAnalyzer):
                 # 记录类方法，用于后续过滤顶层函数
                 class_methods.add(item)
 
-                method = await self.analyze_function(item, imports_map)
+                method = await self.analyze_function(item, imports_map, class_name=node.name)
                 # 转换为方法类型
                 method.type = FunctionType.METHOD.value
                 method.class_name = node.name
@@ -387,7 +382,7 @@ class PythonAnalyzer(LanguageAnalyzer):
                         attributes.append(target.id)
         
         class_info = ClassInfo(
-            file_path=os.path.relpath(self.file_path, self.base_path),
+            file_path=os.path.relpath(self.file_path, self.base_path).replace('\\', '/'),
             name=node.name,
             full_name=full_name,
             node_type=node_type.value,
@@ -428,7 +423,7 @@ class PythonAnalyzer(LanguageAnalyzer):
                 base_name = base_full_name.split('.')[-1]
                 
                 base_classes.append(ClassInfo(
-                    file_path=os.path.relpath(self.file_path, self.base_path),
+                    file_path=os.path.relpath(self.file_path, self.base_path).replace('\\', '/'),
                     name=base_name,
                     full_name=base_full_name,
                     node_type=ClassType.CLASS.value
@@ -450,7 +445,7 @@ class PythonAnalyzer(LanguageAnalyzer):
                 base_name = base_full_name.split('.')[-1]
                 
                 base_classes.append(ClassInfo(
-                    file_path=os.path.relpath(self.file_path, self.base_path),
+                    file_path=os.path.relpath(self.file_path, self.base_path).replace('\\', '/'),
                     name=base_name,
                     full_name=base_full_name,
                     node_type=ClassType.CLASS.value

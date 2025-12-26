@@ -4,13 +4,11 @@
 
 ## 测试结构
 
-- `test_models.py` - 数据模型结构验证
-- `test_file_analyzer.py` - 语言检测功能测试
 - `test_python_ast_analysis.py` - **Python AST分析功能验证**（核心测试）
 - `test_java_ast_analysis.py` - Java AST分析功能验证
 - `test_go_ast_analysis.py` - Go AST分析功能验证
-- `test_folder_ast_analysis.py` - 文件夹分析功能验证
-- `test_integration.py` - 集成测试：完整项目分析验证
+- `test_c_ast_analysis.py` - C AST分析功能验证
+- `test_cpp_ast_analysis.py` - C++ AST分析功能验证
 
 ## 测试重点
 
@@ -23,12 +21,6 @@
 - ✅ 异步函数支持
 - ✅ 复杂函数签名：类型注解、默认参数
 - ✅ 顶层函数与类方法区分
-- ✅ 相对路径计算
-
-### 文件夹分析验证 (`test_folder_ast_analysis.py`)
-- ✅ 项目结构分析
-- ✅ 隐藏目录排除
-- ✅ 多语言文件支持
 - ✅ 相对路径计算
 
 ## 运行测试
@@ -85,14 +77,9 @@ pytest app/codeast/test/ --cov=app.codeast --cov-report=html
 - 相对导入是否正确转换为绝对路径
 - 导入路径映射是否正确
 
-### 路径验证
-- 文件相对路径计算是否正确
-- 文件夹相对路径计算是否正确
-
 ## 注意事项
 
 1. 测试使用临时目录，不会影响实际文件系统
 2. 测试通过构造不同的源码场景来验证AST分析的正确性
 3. 每个测试都验证特定的AST分析功能点
-4. 集成测试验证完整项目的分析流程
 

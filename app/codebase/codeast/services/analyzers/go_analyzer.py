@@ -92,8 +92,9 @@ class GoAnalyzer(LanguageAnalyzer):
             
             return FileInfo(
                 name=os.path.basename(self.file_path),
-                file_path=os.path.relpath(self.file_path, self.base_path),
+                file_path=os.path.relpath(self.file_path, self.base_path).replace('\\', '/'),
                 language=Lang.GO,
+                summary="",
                 functions=functions,
                 classes=structs,
                 imports=self.get_imports(content, tree),                
@@ -287,8 +288,14 @@ class GoAnalyzer(LanguageAnalyzer):
         return ""
         
     def _get_function_signature(self, node, content: str) -> str:
-        """获取函数签名"""
-        return content[node.start_byte:node.end_byte].split('{')[0].strip()
+        """获取函数签名 - 只包含类型，不包含参数名"""
+        func_name = self._get_function_name(node)
+        param_types = self._get_param_types(node)
+        return_types = self._get_function_returns(node)
+        
+        param_signature = ", ".join(param_types) if param_types else ""
+        return_type_str = return_types[0] if return_types else "void"
+        return f"{func_name}({param_signature}) -> {return_type_str}"
         
     def _get_function_params(self, node) -> List[str]:
         """获取函数参数列表"""
@@ -485,7 +492,7 @@ class GoAnalyzer(LanguageAnalyzer):
                 full_name=method_name,  # 接口方法不需要包名前缀
                 signature=self._get_function_signature(method_elem, content),
                 type=FunctionType.METHOD.value,
-                file_path=os.path.relpath(self.file_path, self.base_path),
+                file_path=os.path.relpath(self.file_path, self.base_path).replace('\\', '/'),
                 source_code=source_code,
                 start_line=method_elem.start_point[0],
                 end_line=method_elem.end_point[0],

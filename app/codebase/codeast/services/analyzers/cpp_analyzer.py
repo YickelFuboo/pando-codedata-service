@@ -4,7 +4,7 @@ import logging
 from tree_sitter import Language, Parser
 from typing import Optional, List
 from .base import LanguageAnalyzer
-from ...models.model import FileInfo, FunctionInfo, ClassInfo, ClassType, Language as Lang
+from ...models.model import FileInfo, FunctionInfo, ClassInfo, FunctionType, ClassType, Language as Lang
 
 # 全局变量存储已加载的语言
 LANGUAGES = {}
@@ -75,8 +75,10 @@ class CppAnalyzer(LanguageAnalyzer):
             await visit_node(tree.root_node)
             
             return FileInfo(
+                name=os.path.basename(self.file_path),
                 file_path=os.path.relpath(self.file_path, self.base_path),
                 language=Lang.CPP,
+                summary="",
                 functions=functions,
                 classes=classes,
                 imports=self.get_imports(content, tree)
@@ -108,13 +110,18 @@ class CppAnalyzer(LanguageAnalyzer):
             
         source_code = content[node.start_byte:node.end_byte]
         
+        signature = self._get_function_signature(node, content)
+        full_name = func_name  # C++ 函数可能需要命名空间，这里简化处理
+        
         return FunctionInfo(
-            file_path=os.path.relpath(self.file_path, self.base_path),
             name=func_name,
-            signature=self._get_function_signature(node, content),
+            full_name=full_name,
+            signature=signature,
+            type=FunctionType.FUNCTION.value,
+            file_path=os.path.relpath(self.file_path, self.base_path),
             source_code=source_code,
-            start_line=node.start_point[0],
-            end_line=node.end_point[0],
+            start_line=node.start_point[0] + 1,
+            end_line=node.end_point[0] + 1,
             params=self._get_function_params(node),
             param_types=self._get_param_types(node),
             returns=self._get_function_returns(node),
@@ -129,11 +136,13 @@ class CppAnalyzer(LanguageAnalyzer):
             return None
             
         source_code = content[node.start_byte:node.end_byte]
+        full_name = class_name  # C++ 类可能需要命名空间，这里简化处理
         
         return ClassInfo(
-            file_path=os.path.relpath(self.file_path, self.base_path),
             name=class_name,
-            node_type=ClassType.CLASS,
+            full_name=full_name,
+            file_path=os.path.relpath(self.file_path, self.base_path),
+            node_type=ClassType.CLASS.value,
             source_code=source_code,
             start_line=node.start_point[0],
             end_line=node.end_point[0],

@@ -4,7 +4,7 @@ import re
 import os
 import logging
 from .base import LanguageAnalyzer
-from ...models.model import FileInfo, FunctionInfo, ClassInfo, ClassType, Language as Lang
+from ...models.model import FileInfo, FunctionInfo, ClassInfo, ClassType, FunctionType, Language as Lang
 
 
 # 全局变量存储已加载的语言
@@ -78,8 +78,10 @@ class CAnalyzer(LanguageAnalyzer):
             await visit_node(tree.root_node)
             
             return FileInfo(
-                file_path=os.path.relpath(self.file_path, self.base_path),
+                name=os.path.basename(self.file_path),
+                file_path=os.path.relpath(self.file_path, self.base_path).replace('\\', '/'),
                 language=Lang.C,
+                summary="",
                 functions=functions,
                 classes=structs,
                 imports=self.get_imports(content, tree)
@@ -118,13 +120,24 @@ class CAnalyzer(LanguageAnalyzer):
             
         source_code = content[node.start_byte:node.end_byte]
         
+        # 生成函数签名（只包含类型，不包含参数名）
+        param_types = self._get_param_types(node) if hasattr(self, '_get_param_types') else []
+        return_types = self._get_return_types(node) if hasattr(self, '_get_return_types') else []
+        param_signature = ", ".join(param_types) if param_types else ""
+        return_type_str = return_types[0] if return_types else "void"
+        signature = f"{func_name}({param_signature}) -> {return_type_str}"
+        
+        full_name = func_name  # C 函数没有命名空间
+        
         return FunctionInfo(
-            file_path=os.path.relpath(self.file_path, self.base_path),
             name=func_name,
-            signature=self._get_function_signature(node, content),
+            full_name=full_name,
+            signature=signature,
+            type=FunctionType.FUNCTION.value,
+            file_path=os.path.relpath(self.file_path, self.base_path).replace('\\', '/'),
             source_code=source_code,
-            start_line=node.start_point[0],
-            end_line=node.end_point[0],
+            start_line=node.start_point[0] + 1,
+            end_line=node.end_point[0] + 1,
             params=self._get_function_params(node),
             param_types=self._get_param_types(node),
             returns=self._get_function_returns(node),
@@ -139,11 +152,13 @@ class CAnalyzer(LanguageAnalyzer):
             return None
             
         source_code = content[node.start_byte:node.end_byte]
+        full_name = struct_name  # C 结构体没有命名空间
         
         return ClassInfo(
-            file_path=os.path.relpath(self.file_path, self.base_path),
             name=struct_name,
-            node_type=ClassType.STRUCT,
+            full_name=full_name,
+            file_path=os.path.relpath(self.file_path, self.base_path).replace('\\', '/'),
+            node_type=ClassType.STRUCT.value,
             source_code=source_code,
             start_line=node.start_point[0],
             end_line=node.end_point[0],

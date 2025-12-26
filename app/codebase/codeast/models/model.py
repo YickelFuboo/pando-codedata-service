@@ -97,14 +97,13 @@ class CallInfo:
 class FunctionInfo:
     """函数节点（包括普通函数、类方法和API）"""
     # Key fields (必需字段，无默认值)
-    project_id: str             # 项目ID，如果是API则为None
-    name: str                   # 函数名
+    name: str                   # 函数名（单纯函数名）
     full_name: str              # 完整方法名（包含模块路径），例如:
                                # - 普通函数: "app.utils.helper.process_data"
                                # - 类方法: "app.models.User.save"
                                # - API: "os.path.join"
-    signature: str             # 完整签名
     
+    signature: str             # 完整签名，包含参数类型和返回值类型
     # 函数类型，用于区分普通函数、类方法和API
     type: str  #FunctionType
     # 函数特征
@@ -133,7 +132,6 @@ class FunctionInfo:
 class ClassInfo:
     """类节点（包含struct等类似概念）"""
     # Key fields
-    project_id: str  # 项目全局唯一标识符
     name: str        # 类名
     full_name: str   # 完整类名（包含模块路径），例如: "app.models.user.User"
     
@@ -154,6 +152,7 @@ class ClassInfo:
 class FileInfo:
     """文件节点"""
     # Key fields
+    name: str  # 文件名
     file_path: str
     
     # Non-key fields

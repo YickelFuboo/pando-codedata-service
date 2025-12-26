@@ -1,8 +1,8 @@
 import os
 import tempfile
 import pytest
-from app.codeast.services.ast_analyzer import FileAstAnalyzer
-from app.codeast.models.model import Language
+from app.codebase.codeast.services.ast_analyzer import FileAstAnalyzer
+from app.codebase.codeast.models.model import Language
 
 
 class TestCASTAnalysis:
