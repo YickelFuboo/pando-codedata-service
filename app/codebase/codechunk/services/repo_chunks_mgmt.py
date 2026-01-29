@@ -72,7 +72,7 @@ class RepoCodeChunksMgmt:
             logging.error(f"获取代码片段数据列表失败: {e}")
             return []
     
-    async def get_source_unvectorized(self, limit: int = 100) -> List[RepoCodeChunks]:
+    async def _get_source_unvectorized(self, limit: int = 100) -> List[RepoCodeChunks]:
         """获取未向量化源码的代码片段数据"""
         try:
             if not self.repo_id:
@@ -89,7 +89,7 @@ class RepoCodeChunksMgmt:
             logging.error(f"获取未向量化源码的代码片段数据失败: {e}")
             return []
     
-    async def get_summary_unvectorized(self, limit: int = 100) -> List[RepoCodeChunks]:
+    async def _get_summary_unvectorized(self, limit: int = 100) -> List[RepoCodeChunks]:
         """获取未向量化功能说明的代码片段数据"""
         try:
             if not self.repo_id:
@@ -107,7 +107,7 @@ class RepoCodeChunksMgmt:
             logging.error(f"获取未向量化功能说明的代码片段数据失败: {e}")
             return []
     
-    async def get_unsummarized(self, limit: int = 100) -> List[RepoCodeChunks]:
+    async def _get_unsummarized(self, limit: int = 100) -> List[RepoCodeChunks]:
         """获取未生成summary的代码片段数据"""
         try:
             if not self.repo_id:
@@ -157,7 +157,7 @@ class RepoCodeChunksMgmt:
             
             # 如果已向量化，先删除向量记录
             if chunk_data.is_source_vectorized or chunk_data.is_summary_vectorized:
-                await self.delete_vector_record_by_id(chunk_data)
+                await self._delete_vector_record_by_id(chunk_data)
             
             await self.db_session.delete(chunk_data)
             await self.db_session.commit()
@@ -178,7 +178,7 @@ class RepoCodeChunksMgmt:
         
         try:
             # 直接删除整个向量空间（更高效）
-            await self.delete_vector_records_by_repo_id()
+            await self._delete_vector_records_by_repo_id()
             
             # 删除数据库记录
             await self.db_session.execute(delete(RepoCodeChunks).where(RepoCodeChunks.repo_id == self.repo_id))
@@ -213,7 +213,7 @@ class RepoCodeChunksMgmt:
             chunks_to_delete = list(result.scalars().all())
             for chunk in chunks_to_delete:
                 if chunk.is_source_vectorized or chunk.is_summary_vectorized:
-                    await self.delete_vector_record_by_id(chunk)
+                    await self._delete_vector_record_by_id(chunk)
             
             # 删除数据库记录
             await self.db_session.execute(delete(RepoCodeChunks).where(
@@ -238,7 +238,7 @@ class RepoCodeChunksMgmt:
         
         try:
             # 批量删除向量记录（更高效）
-            await self.delete_vector_records_by_repo_id_and_file_path(file_path)
+            await self._delete_vector_records_by_repo_id_and_file_path(file_path)
             
             # 删除数据库记录
             await self.db_session.execute(delete(RepoCodeChunks).where(
@@ -486,7 +486,7 @@ class RepoCodeChunksMgmt:
             logging.error(f"批量向量化代码片段功能说明失败: {e}")
             return 0
     
-    async def delete_vector_record_by_id(self, chunk: RepoCodeChunks) -> None:
+    async def _delete_vector_record_by_id(self, chunk: RepoCodeChunks) -> None:
         """删除代码片段的向量记录（源码和功能说明）"""
         try:
             embedding_model = embedding_factory.create_model()
@@ -536,7 +536,7 @@ class RepoCodeChunksMgmt:
         except Exception as e:
             logging.warning(f"删除向量记录失败: chunk_id={chunk.id}, error={e}")
     
-    async def delete_vector_records_by_repo_id(self) -> bool:
+    async def _delete_vector_records_by_repo_id(self) -> bool:
         """根据代码仓ID删除向量空间（源码和功能说明）
         
         直接删除整个向量空间，因为空间名称是基于repo_id的
@@ -592,7 +592,7 @@ class RepoCodeChunksMgmt:
             logging.warning(f"批量删除向量空间失败: repo_id={self.repo_id}, error={e}")
             return False
     
-    async def delete_vector_records_by_repo_id_and_file_path(self, file_path: str) -> int:
+    async def _delete_vector_records_by_repo_id_and_file_path(self, file_path: str) -> int:
         """根据代码仓ID和文件路径批量删除向量记录（源码和功能说明）
         
         使用类变量 self.repo_id
@@ -659,7 +659,7 @@ class RepoCodeChunksMgmt:
     async def scan_and_generate_summary(self, limit: int = 100) -> int:
         """批量生成代码片段功能描述"""
         try:
-            unsummarized = await self.get_unsummarized(limit=limit)
+            unsummarized = await self._get_unsummarized(limit=limit)
             count = 0
             for chunk_data in unsummarized:
                 try:
@@ -681,7 +681,7 @@ class RepoCodeChunksMgmt:
     async def scan_and_vectorize_source(self, limit: int = 100) -> int:
         """批量向量化未向量化的代码片段源码"""
         try:
-            unvectorized = await self.get_source_unvectorized(limit=limit)
+            unvectorized = await self._get_source_unvectorized(limit=limit)
             if not unvectorized:
                 return 0
             return await self.vectorize_source(unvectorized)
@@ -692,7 +692,7 @@ class RepoCodeChunksMgmt:
     async def scan_and_vectorize_summary(self, limit: int = 100) -> int:
         """批量向量化未向量化的代码片段功能说明"""
         try:
-            unvectorized = await self.get_summary_unvectorized(limit=limit)
+            unvectorized = await self._get_summary_unvectorized(limit=limit)
             if not unvectorized:
                 return 0
             return await self.vectorize_summary(unvectorized)
