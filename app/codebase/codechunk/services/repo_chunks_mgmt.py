@@ -167,7 +167,7 @@ class RepoCodeChunksMgmt:
         try:
             summary = await CodeSummary.llm_summarize(
                 chunk_data.source_code,
-                ContentType.FRAGMENT
+                ContentType.CODE_CHUNK
             )
             return summary
         except Exception as e:
