@@ -52,8 +52,8 @@ class CommitResultDto:
 
 class CodeWikiGenService:
     """Code Wiki服务类 - 提供代码Wiki的创建、更新和查询功能"""
-    def __init__(self, session: AsyncSession, document_id: str, local_path: str, git_url: str, git_name: str, branch: str):
-        self.session = session
+    def __init__(self, db_session: AsyncSession, document_id: str, local_path: str, git_url: str, git_name: str, branch: str):
+        self.db_session = db_session
         self.document_id = document_id
         self.local_path = local_path    
         self.git_url = git_url

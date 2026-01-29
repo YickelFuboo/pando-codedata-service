@@ -36,8 +36,8 @@ class DocumentResultCatalogueItem:
 
 class CodeWikiContentGenService:
     """Code Wiki服务类 - 提供代码Wiki的创建、更新和查询功能"""
-    def __init__(self, session: AsyncSession, document_id: str, local_path: str, git_url: str, git_name: str, branch: str, repo_catalogue: str, classify: Optional[ClassifyType] = None):
-        self.session = session
+    def __init__(self, db_session: AsyncSession, document_id: str, local_path: str, git_url: str, git_name: str, branch: str, repo_catalogue: str, classify: Optional[ClassifyType] = None):
+        self.db_session = db_session
         self.document_id = document_id
         self.local_path = local_path    
         self.git_url = git_url
@@ -60,7 +60,7 @@ class CodeWikiContentGenService:
     async def generate_wiki_catalogue(self) -> List[RepoWikiCatalog]:
         """生成目录"""
         try:
-            doucument = await CodeWikiDocumentService.get_wiki_document_by_id(self.session, self.document_id)
+            doucument = await CodeWikiDocumentService.get_wiki_document_by_id(self.db_session, self.document_id)
             if not doucument:
                 raise ValueError(f"文档ID {self.document_id} 不存在")
 
@@ -136,12 +136,12 @@ class CodeWikiContentGenService:
             self._cover_to_repo_wiki_catalogs(catalogue_result, None, wiki_catalogs)
 
             # 删除遗留的目录数据
-            await self.session.execute(
+            await self.db_session.execute(
                 delete(RepoWikiCatalog).where(RepoWikiCatalog.document_id == self.document_id)
             )
             # 将解析的目录结构保存到数据库
-            await self.session.add_all(wiki_catalogs)
-            await self.session.commit()
+            await self.db_session.add_all(wiki_catalogs)
+            await self.db_session.commit()
 
             return wiki_catalogs
         except Exception as e:
@@ -311,8 +311,8 @@ class CodeWikiContentGenService:
                 extra={})
 
             # 保存数据到数据库
-            self.session.add(repo_wiki_content)
-            await self.session.commit()
+            self.db_session.add(repo_wiki_content)
+            await self.db_session.commit()
 
             return repo_wiki_content
             

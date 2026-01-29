@@ -24,8 +24,8 @@ class MiniMapResult:
     nodes: List['MiniMapResult'] = field(default_factory=list)
 
 class MiniMapService:
-    def __init__(self, session: AsyncSession, document_id: str, local_path: str, git_url: str, branch: str, repo_catalogue: str):
-        self.session = session
+    def __init__(self, db_session: AsyncSession, document_id: str, local_path: str, git_url: str, branch: str, repo_catalogue: str):
+        self.session = db_session
         self.document_id = document_id
         self.local_path = local_path
         self.git_url = git_url

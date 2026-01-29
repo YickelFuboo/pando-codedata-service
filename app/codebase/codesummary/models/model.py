@@ -1,4 +1,4 @@
-import enum
+from enum import Enum
 
 
 class ContentType(str, Enum):
@@ -9,3 +9,4 @@ class ContentType(str, Enum):
     STRUCT = "struct"      # 结构体
     INTERFACE = "interface" # 接口
     FUNCTION = "function"  # 函数/方法
+    CODE_CHUNK = "code_chunk"  # 代码片段
