@@ -18,8 +18,6 @@ class RepoCodeChunks(Base, TimestampMixin):
     is_summarized = Column(Boolean, default=False, index=True, comment="是否已生成功能说明")
     is_source_vectorized = Column(Boolean, default=False, index=True, comment="源码向量化状态")
     is_summary_vectorized = Column(Boolean, default=False, index=True, comment="功能说明向量化状态")
-    source_vector_id = Column(String(100), nullable=True, comment="源码向量存储ID")
-    summary_vector_id = Column(String(100), nullable=True, comment="功能说明向量存储ID")
     
     __table_args__ = (
         Index('idx_repo_id', 'repo_id'),
@@ -42,8 +40,6 @@ class RepoCodeChunks(Base, TimestampMixin):
             "is_summarized": self.is_summarized,
             "is_source_vectorized": self.is_source_vectorized,
             "is_summary_vectorized": self.is_summary_vectorized,
-            "source_vector_id": self.source_vector_id,
-            "summary_vector_id": self.summary_vector_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -64,7 +60,6 @@ class RepoFunctions(Base, TimestampMixin):
     summary = Column(Text, nullable=True, comment="功能说明")
     is_summarized = Column(Boolean, default=False, index=True, comment="是否已生成功能说明")
     is_vectorized = Column(Boolean, default=False, index=True, comment="向量化状态")
-    vector_id = Column(String(100), nullable=True, comment="向量存储ID")
     
     __table_args__ = (
         Index('idx_repo_id', 'repo_id'),
@@ -88,7 +83,6 @@ class RepoFunctions(Base, TimestampMixin):
             "summary": self.summary,
             "is_summarized": self.is_summarized,
             "is_vectorized": self.is_vectorized,
-            "vector_id": self.vector_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -109,7 +103,6 @@ class RepoClasses(Base, TimestampMixin):
     summary = Column(Text, nullable=True, comment="功能说明")
     is_summarized = Column(Boolean, default=False, index=True, comment="是否已生成功能说明")
     is_vectorized = Column(Boolean, default=False, index=True, comment="向量化状态")
-    vector_id = Column(String(100), nullable=True, comment="向量存储ID")
     
     __table_args__ = (
         Index('idx_repo_id', 'repo_id'),
@@ -133,7 +126,6 @@ class RepoClasses(Base, TimestampMixin):
             "summary": self.summary,
             "is_summarized": self.is_summarized,
             "is_vectorized": self.is_vectorized,
-            "vector_id": self.vector_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

@@ -192,11 +192,7 @@ class RepoClassesMgmt:
                 "vector": vector
             }
             
-            space_name = get_class_vector_space(class_data.repo_id)
-            created = await VECTOR_STORE_CONN.create_space(space_name, vector_size=len(vector))
-            if not created:
-                logging.error(f"创建向量空间失败: {space_name}")
-                return False
+            space_name = await get_class_vector_space(class_data.repo_id, vector_size=len(vector))
             vector_ids = await VECTOR_STORE_CONN.insert_records(space_name, [record])
             if vector_ids and len(vector_ids) > 0:
                 await self.update(class_data.id, ClassDataUpdate(
@@ -273,7 +269,7 @@ class RepoClassesMgmt:
                 top_k=request.top_k
             )
             
-            space_name = get_class_vector_space(repo_id)
+            space_name = f"repo_{repo_id}_class"
             space_names = [space_name]
             if request.file_path:
                 search_request.filter = {"term": {"file_path": request.file_path}}

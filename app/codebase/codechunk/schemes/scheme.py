@@ -18,8 +18,6 @@ class CodeChunkUpdate(BaseModel):
     is_summarized: Optional[bool] = None
     is_source_vectorized: Optional[bool] = None
     is_summary_vectorized: Optional[bool] = None
-    source_vector_id: Optional[str] = None
-    summary_vector_id: Optional[str] = None
 
 
 class FunctionDataCreate(BaseModel):
