@@ -455,7 +455,6 @@ class RepoCodeChunksMgmt:
                     record = {
                         "id": chunk.id,
                         "repo_id": chunk.repo_id,
-                        "source_code": chunk.source_code,
                         "file_path": chunk.file_path,
                         "start_line": chunk.start_line,
                         "end_line": chunk.end_line,
@@ -486,6 +485,192 @@ class RepoCodeChunksMgmt:
             logging.error(f"批量向量化代码片段功能说明失败: {e}")
             return 0
     
+    async def scan_and_generate_summary(self, limit: int = 100) -> int:
+        """批量生成代码片段功能描述"""
+        try:
+            unsummarized = await self._get_unsummarized(limit=limit)
+            count = 0
+            for chunk_data in unsummarized:
+                try:
+                    summary = await self.generate_summary(chunk_data)
+                    if summary:
+                        await self.update(chunk_data.id, CodeChunkUpdate(
+                            summary=summary,
+                            is_summarized=True
+                        ))
+                        count += 1
+                except Exception as e:
+                    logging.error(f"生成代码片段{chunk_data.id}摘要失败: {e}")
+                    continue
+            return count
+        except Exception as e:
+            logging.error(f"批量生成summary失败: {e}")
+            return 0
+    
+    async def scan_and_vectorize_source(self, limit: int = 100) -> int:
+        """批量向量化未向量化的代码片段源码"""
+        try:
+            unvectorized = await self._get_source_unvectorized(limit=limit)
+            if not unvectorized:
+                return 0
+            return await self.vectorize_source(unvectorized)
+        except Exception as e:
+            logging.error(f"批量向量化源码失败: {e}")
+            return 0
+    
+    async def scan_and_vectorize_summary(self, limit: int = 100) -> int:
+        """批量向量化未向量化的代码片段功能说明"""
+        try:
+            unvectorized = await self._get_summary_unvectorized(limit=limit)
+            if not unvectorized:
+                return 0
+            return await self.vectorize_summary(unvectorized)
+        except Exception as e:
+            logging.error(f"批量向量化功能说明失败: {e}")
+            return 0
+    
+    async def search_by_source_vector(self, request: SearchRequestDto) -> SearchResponse:
+        """向量搜索代码片段源码"""
+        try:
+            repo_id = request.repo_id or self.repo_id
+            if not repo_id:
+                logging.error("repo_id不能为空")
+                return SearchResponse(results=[], total=0)
+            
+            embedding_model = embedding_factory.create_model()
+            if not embedding_model:
+                logging.error("无法创建嵌入模型")
+                return SearchResponse(results=[], total=0)
+            
+            query_vector, _ = await embedding_model.encode_queries(request.query)
+            if query_vector is None:
+                logging.error("查询向量化失败")
+                return SearchResponse(results=[], total=0)
+            
+            # 获取向量维度
+            vector_size = len(query_vector) if hasattr(query_vector, '__len__') else query_vector.shape[0]
+            vector_field_name = f"q_{vector_size}_vec"
+            
+            vector_expr = MatchDenseExpr(
+                vector_column_name=vector_field_name,
+                embedding_data=query_vector.tolist(),
+                embedding_data_type="float32",
+                distance_type="cosine",
+                topn=request.top_k
+            )
+            
+            search_request = SearchRequest(
+                match_exprs=[vector_expr],
+                limit=request.top_k
+            )
+            
+            space_name = await get_chunk_source_vector_space(repo_id, vector_size)
+            space_names = [space_name]
+            if request.file_path:
+                search_request.condition = {"file_path": request.file_path}
+            
+            result = await VECTOR_STORE_CONN.search(space_names, search_request)
+            
+            total = VECTOR_STORE_CONN.get_total(result)
+            fields = VECTOR_STORE_CONN.get_fields(result, ["id", "source_code", "file_path", "start_line", "end_line"])
+            
+            results = []
+            for field_data in fields.values():
+                chunk_id = field_data.get("id")
+                if not chunk_id:
+                    continue
+                results.append(SearchResult(
+                    id=chunk_id,
+                    source_code=field_data.get("source_code", ""),
+                    file_path=field_data.get("file_path", ""),
+                    start_line=field_data.get("start_line", 0),
+                    end_line=field_data.get("end_line", 0),
+                    score=field_data.get("_score")
+                ))
+            
+            return SearchResponse(results=results, total=total)
+        except Exception as e:
+            logging.error(f"搜索代码片段源码失败: {e}")
+            return SearchResponse(results=[], total=0)
+    
+    async def search_by_summary_vector(self, request: SearchRequestDto) -> SearchResponse:
+        """向量搜索代码片段功能说明"""
+        try:
+            repo_id = request.repo_id or self.repo_id
+            if not repo_id:
+                logging.error("repo_id不能为空")
+                return SearchResponse(results=[], total=0)
+            
+            embedding_model = embedding_factory.create_model()
+            if not embedding_model:
+                logging.error("无法创建嵌入模型")
+                return SearchResponse(results=[], total=0)
+            
+            query_vector, _ = await embedding_model.encode_queries(request.query)
+            if query_vector is None:
+                logging.error("查询向量化失败")
+                return SearchResponse(results=[], total=0)
+            
+            # 获取向量维度
+            vector_size = len(query_vector) if hasattr(query_vector, '__len__') else query_vector.shape[0]
+            vector_field_name = f"q_{vector_size}_vec"
+            
+            vector_expr = MatchDenseExpr(
+                vector_column_name=vector_field_name,
+                embedding_data=query_vector.tolist(),
+                embedding_data_type="float32",
+                distance_type="cosine",
+                topn=request.top_k
+            )
+            
+            search_request = SearchRequest(
+                match_exprs=[vector_expr],
+                limit=request.top_k
+            )
+            
+            space_name = await get_chunk_summary_vector_space(repo_id, vector_size)
+            space_names = [space_name]
+            if request.file_path:
+                search_request.condition = {"file_path": request.file_path}
+            
+            result = await VECTOR_STORE_CONN.search(space_names, search_request)
+            
+            total = VECTOR_STORE_CONN.get_total(result)
+            fields = VECTOR_STORE_CONN.get_fields(result, ["id", "file_path", "start_line", "end_line", "summary"])
+            
+            # 从fields中获取chunk ID列表，用于批量查询数据库
+            chunk_ids = [field_data.get("id") for field_data in fields.values() if field_data.get("id")]
+            
+            # 批量从数据库查询source_code
+            chunk_map = {}
+            if chunk_ids:
+                query = select(RepoCodeChunks).where(RepoCodeChunks.id.in_(chunk_ids))
+                db_result = await self.db_session.execute(query)
+                chunks = list(db_result.scalars().all())
+                chunk_map = {chunk.id: chunk for chunk in chunks}
+            
+            results = []
+            for field_data in fields.values():
+                chunk_id = field_data.get("id")
+                if not chunk_id:
+                    continue
+                chunk_data = chunk_map.get(chunk_id)
+                
+                results.append(SearchResult(
+                    id=chunk_id,
+                    source_code=chunk_data.source_code if chunk_data else "",
+                    file_path=field_data.get("file_path", ""),
+                    start_line=field_data.get("start_line", 0),
+                    end_line=field_data.get("end_line", 0),
+                    summary=field_data.get("summary"),
+                    score=field_data.get("_score")
+                ))
+            
+            return SearchResponse(results=results, total=total)
+        except Exception as e:
+            logging.error(f"搜索代码片段功能说明失败: {e}")
+            return SearchResponse(results=[], total=0)
+
     async def _delete_vector_record_by_id(self, chunk: RepoCodeChunks) -> None:
         """删除代码片段的向量记录（源码和功能说明）"""
         try:
@@ -655,174 +840,3 @@ class RepoCodeChunksMgmt:
         except Exception as e:
             logging.warning(f"批量删除向量记录失败: repo_id={self.repo_id}, file_path={file_path}, error={e}")
             return total_deleted
-    
-    async def scan_and_generate_summary(self, limit: int = 100) -> int:
-        """批量生成代码片段功能描述"""
-        try:
-            unsummarized = await self._get_unsummarized(limit=limit)
-            count = 0
-            for chunk_data in unsummarized:
-                try:
-                    summary = await self.generate_summary(chunk_data)
-                    if summary:
-                        await self.update(chunk_data.id, CodeChunkUpdate(
-                            summary=summary,
-                            is_summarized=True
-                        ))
-                        count += 1
-                except Exception as e:
-                    logging.error(f"生成代码片段{chunk_data.id}摘要失败: {e}")
-                    continue
-            return count
-        except Exception as e:
-            logging.error(f"批量生成summary失败: {e}")
-            return 0
-    
-    async def scan_and_vectorize_source(self, limit: int = 100) -> int:
-        """批量向量化未向量化的代码片段源码"""
-        try:
-            unvectorized = await self._get_source_unvectorized(limit=limit)
-            if not unvectorized:
-                return 0
-            return await self.vectorize_source(unvectorized)
-        except Exception as e:
-            logging.error(f"批量向量化源码失败: {e}")
-            return 0
-    
-    async def scan_and_vectorize_summary(self, limit: int = 100) -> int:
-        """批量向量化未向量化的代码片段功能说明"""
-        try:
-            unvectorized = await self._get_summary_unvectorized(limit=limit)
-            if not unvectorized:
-                return 0
-            return await self.vectorize_summary(unvectorized)
-        except Exception as e:
-            logging.error(f"批量向量化功能说明失败: {e}")
-            return 0
-    
-    async def search_by_source_vector(self, request: SearchRequestDto) -> SearchResponse:
-        """向量搜索代码片段源码"""
-        try:
-            repo_id = request.repo_id or self.repo_id
-            if not repo_id:
-                logging.error("repo_id不能为空")
-                return SearchResponse(results=[], total=0)
-            
-            embedding_model = embedding_factory.create_model()
-            if not embedding_model:
-                logging.error("无法创建嵌入模型")
-                return SearchResponse(results=[], total=0)
-            
-            query_vector, _ = await embedding_model.encode_queries(request.query)
-            if query_vector is None:
-                logging.error("查询向量化失败")
-                return SearchResponse(results=[], total=0)
-            
-            # 获取向量维度
-            vector_size = len(query_vector) if hasattr(query_vector, '__len__') else query_vector.shape[0]
-            vector_field_name = f"q_{vector_size}_vec"
-            
-            vector_expr = MatchDenseExpr(
-                vector_column_name=vector_field_name,
-                embedding_data=query_vector.tolist(),
-                embedding_data_type="float32",
-                distance_type="cosine",
-                topn=request.top_k
-            )
-            
-            search_request = SearchRequest(
-                match_exprs=[vector_expr],
-                limit=request.top_k
-            )
-            
-            space_name = await get_chunk_source_vector_space(repo_id, vector_size)
-            space_names = [space_name]
-            if request.file_path:
-                search_request.condition = {"file_path": request.file_path}
-            
-            result = await VECTOR_STORE_CONN.search(space_names, search_request)
-            
-            total = VECTOR_STORE_CONN.get_total(result)
-            chunk_ids = VECTOR_STORE_CONN.get_chunk_ids(result)
-            fields = VECTOR_STORE_CONN.get_fields(result, ["id", "source_code", "file_path", "start_line", "end_line"])
-            
-            results = []
-            for i, chunk_id in enumerate(chunk_ids):
-                field_data = fields.get(chunk_id, {})
-                results.append(SearchResult(
-                    id=field_data.get("id", chunk_id),
-                    source_code=field_data.get("source_code", ""),
-                    file_path=field_data.get("file_path", ""),
-                    start_line=field_data.get("start_line", 0),
-                    end_line=field_data.get("end_line", 0),
-                    score=field_data.get("_score")
-                ))
-            
-            return SearchResponse(results=results, total=total)
-        except Exception as e:
-            logging.error(f"搜索代码片段源码失败: {e}")
-            return SearchResponse(results=[], total=0)
-    
-    async def search_by_summary_vector(self, request: SearchRequestDto) -> SearchResponse:
-        """向量搜索代码片段功能说明"""
-        try:
-            repo_id = request.repo_id or self.repo_id
-            if not repo_id:
-                logging.error("repo_id不能为空")
-                return SearchResponse(results=[], total=0)
-            
-            embedding_model = embedding_factory.create_model()
-            if not embedding_model:
-                logging.error("无法创建嵌入模型")
-                return SearchResponse(results=[], total=0)
-            
-            query_vector, _ = await embedding_model.encode_queries(request.query)
-            if query_vector is None:
-                logging.error("查询向量化失败")
-                return SearchResponse(results=[], total=0)
-            
-            # 获取向量维度
-            vector_size = len(query_vector) if hasattr(query_vector, '__len__') else query_vector.shape[0]
-            vector_field_name = f"q_{vector_size}_vec"
-            
-            vector_expr = MatchDenseExpr(
-                vector_column_name=vector_field_name,
-                embedding_data=query_vector.tolist(),
-                embedding_data_type="float32",
-                distance_type="cosine",
-                topn=request.top_k
-            )
-            
-            search_request = SearchRequest(
-                match_exprs=[vector_expr],
-                limit=request.top_k
-            )
-            
-            space_name = await get_chunk_summary_vector_space(repo_id, vector_size)
-            space_names = [space_name]
-            if request.file_path:
-                search_request.condition = {"file_path": request.file_path}
-            
-            result = await VECTOR_STORE_CONN.search(space_names, search_request)
-            
-            total = VECTOR_STORE_CONN.get_total(result)
-            chunk_ids = VECTOR_STORE_CONN.get_chunk_ids(result)
-            fields = VECTOR_STORE_CONN.get_fields(result, ["id", "source_code", "file_path", "start_line", "end_line", "summary"])
-            
-            results = []
-            for i, chunk_id in enumerate(chunk_ids):
-                field_data = fields.get(chunk_id, {})
-                results.append(SearchResult(
-                    id=field_data.get("id", chunk_id),
-                    source_code=field_data.get("source_code", ""),
-                    file_path=field_data.get("file_path", ""),
-                    start_line=field_data.get("start_line", 0),
-                    end_line=field_data.get("end_line", 0),
-                    summary=field_data.get("summary"),
-                    score=field_data.get("_score")
-                ))
-            
-            return SearchResponse(results=results, total=total)
-        except Exception as e:
-            logging.error(f"搜索代码片段功能说明失败: {e}")
-            return SearchResponse(results=[], total=0)

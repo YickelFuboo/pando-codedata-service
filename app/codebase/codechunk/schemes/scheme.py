@@ -37,7 +37,6 @@ class FunctionDataUpdate(BaseModel):
     summary: Optional[str] = None
     is_summarized: Optional[bool] = None
     is_vectorized: Optional[bool] = None
-    vector_id: Optional[str] = None
 
 
 class ClassDataCreate(BaseModel):
@@ -57,7 +56,6 @@ class ClassDataUpdate(BaseModel):
     summary: Optional[str] = None
     is_summarized: Optional[bool] = None
     is_vectorized: Optional[bool] = None
-    vector_id: Optional[str] = None
 
 
 class SearchRequest(BaseModel):
@@ -71,7 +69,7 @@ class SearchRequest(BaseModel):
 class SearchResult(BaseModel):
     """搜索结果"""
     id: str
-    source_code: str
+    source_code: Optional[str] = None
     file_path: str
     start_line: int
     end_line: int
